@@ -1,0 +1,72 @@
+name: Security Daily (reusable)
+
+on:
+  workflow_call:
+    inputs:
+      bun-version:
+        type: string
+        required: false
+        default: latest
+      audit-level:
+        type: string
+        required: false
+        default: low
+
+jobs:
+  scan:
+    name: Daily security sweep
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ inputs.bun-version }}
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Audit all dependencies
+        run: bun audit --audit-level=${{ inputs.audit-level }} | tee audit-report.txt
+
+      - name: Install gitleaks
+        run: |
+          GL_VERSION=$(curl -fsSL https://api.github.com/repos/gitleaks/gitleaks/releases/latest | jq -r .tag_name | tr -d v)
+          curl -fsSL "https://github.com/gitleaks/gitleaks/releases/download/v${GL_VERSION}/gitleaks_${GL_VERSION}_linux_x64.tar.gz" \
+            | sudo tar -xz -C /usr/local/bin gitleaks
+          gitleaks version
+
+      - name: Scan full history for secrets
+        run: gitleaks detect --source . --redact --no-banner --verbose --report-path gitleaks-report.json
+
+      - name: Compose findings report
+        if: failure()
+        run: |
+          {
+            echo "Daily security sweep failed on $(date -u +'%Y-%m-%d %H:%M UTC')."
+            echo
+            echo "Workflow run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            echo
+            echo "## bun audit"
+            echo '```'
+            cat audit-report.txt 2>/dev/null || echo "(no audit output)"
+            echo '```'
+            echo
+            echo "## gitleaks"
+            echo '```'
+            cat gitleaks-report.json 2>/dev/null || echo "(no gitleaks output)"
+            echo '```'
+          } > findings.md
+
+      - name: Open / update tracking issue
+        if: failure()
+        uses: peter-evans/create-issue-from-file@v6
+        with:
+          title: "Security sweep failed — ${{ github.run_id }}"
+          content-filepath: findings.md
+          labels: security, automated

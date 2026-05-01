@@ -1,0 +1,46 @@
+name: Audit suite
+description: Run bun audit, gitleaks PR-diff scan, and dependency-review on a Node.js project. Assumes bun is installed and dependencies are present.
+
+inputs:
+  audit-level:
+    description: bun audit severity threshold (low|moderate|high|critical)
+    required: false
+    default: high
+  fail-on-severity:
+    description: dependency-review severity threshold
+    required: false
+    default: high
+
+runs:
+  using: composite
+  steps:
+    - name: Audit dependencies
+      shell: bash
+      run: bun audit --audit-level=${{ inputs.audit-level }}
+
+    - name: Install gitleaks
+      shell: bash
+      run: |
+        GL_VERSION=$(curl -fsSL https://api.github.com/repos/gitleaks/gitleaks/releases/latest | jq -r .tag_name | tr -d v)
+        curl -fsSL "https://github.com/gitleaks/gitleaks/releases/download/v${GL_VERSION}/gitleaks_${GL_VERSION}_linux_x64.tar.gz" \
+          | sudo tar -xz -C /usr/local/bin gitleaks
+        gitleaks version
+
+    - name: Scan diff for secrets (PR only)
+      if: github.event_name == 'pull_request'
+      shell: bash
+      run: |
+        gitleaks detect \
+          --source . \
+          --log-opts="${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}" \
+          --redact \
+          --no-banner \
+          --verbose
+
+    - name: Dependency review (PR only)
+      if: github.event_name == 'pull_request'
+      uses: actions/dependency-review-action@v4
+      continue-on-error: true
+      with:
+        fail-on-severity: ${{ inputs.fail-on-severity }}
+        comment-summary-in-pr: on-failure
