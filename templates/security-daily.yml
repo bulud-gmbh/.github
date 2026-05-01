@@ -11,4 +11,7 @@ concurrency:
 
 jobs:
   scan:
+    permissions:
+      contents: read
+      issues: write
     uses: bulud-gmbh/.github/.github/workflows/security-daily.yml@v1

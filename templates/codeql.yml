@@ -15,4 +15,8 @@ concurrency:
 
 jobs:
   analyze:
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
     uses: bulud-gmbh/.github/.github/workflows/codeql.yml@v1
