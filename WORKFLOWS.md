@@ -90,6 +90,20 @@ Copy `templates/dependabot.yml` to `.github/dependabot.yml` in the consumer repo
 - `languages` (default `javascript-typescript`)
 - `queries` (default `security-extended`)
 
+## Bulk distribution
+
+To roll the full stack into multiple webapp repos at once:
+
+```sh
+./scripts/distribute-security.sh                                # all default targets
+./scripts/distribute-security.sh --dry-run bulud-invoice        # preview only
+./scripts/distribute-security.sh bulud-qr-menu GeoPDKS-Core     # selected repos
+```
+
+Per repo it shallow-clones, creates `chore/security-stack`, drops the three template files in (`dependabot.yml`, `codeql.yml`, `security-daily.yml`), patches `ci.yml` via an `awk` rule that matches by step name (so it tolerates header comments and `actions/checkout` version-pin drift), pushes, and opens a PR. If `ci.yml` has already been patched it skips that step. Default target list is in the script.
+
+Pre-reqs: `gh` and `git` on PATH; active `gh auth` identity has write access to the targets; `bulud-gmbh/.github` is pushed and tagged `v1`; org Settings → Actions → Access on this repo is set to "Accessible from repositories owned by 'bulud-gmbh'".
+
 ## Notes
 
 - CodeQL requires GitHub Advanced Security on private repos.

@@ -1,0 +1,14 @@
+name: Security Daily
+
+on:
+  schedule:
+    - cron: "0 4 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: security-daily
+  cancel-in-progress: false
+
+jobs:
+  scan:
+    uses: bulud-gmbh/.github/.github/workflows/security-daily.yml@v1
